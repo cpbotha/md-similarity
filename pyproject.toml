@@ -14,7 +14,10 @@ dependencies = [
     "typer>=0.15.1",
 ]
 
-[dependency-groups]
-dev = [
-    "ipykernel>=6.29.5",
-]
+[project.scripts]
+mdsim = "md_similarity.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+

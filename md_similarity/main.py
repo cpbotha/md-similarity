@@ -71,6 +71,7 @@ class InputChunk(NamedTuple):
     cached_emb: str | None = None
 
 
+@lru_cache
 def _get_db(filename=DEFAULT_DB_NAME):
     db = sqlite3.connect(filename)
     db.enable_load_extension(True)
@@ -148,6 +149,8 @@ def embed_posts(base_dir: str, db_filename: str = DEFAULT_DB_NAME):
         # so now we're just creating from scratch instead
         db.close()
         Path(db_filename).unlink()
+        # NB: clear the cache to force _get_db() to create from scratch in this case
+        _get_db.cache_clear()
         db = _get_db(db_filename)
 
     oai = _get_oai()

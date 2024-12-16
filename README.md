@@ -21,7 +21,7 @@ cd ~/your/hugo-site/content/posts && mdsim embed-posts .
 
 This will create `mdsim.db` with all embeddings in `content/posts`.
 
-Any future invocations will reuse as many of these embeddings as possible, based on sha256 hashes of document chunks.
+Any future invocations will reuse / cache as many of these embeddings as possible, based on sha256 hashes of document chunks.
 
 ### Find similar posts
 

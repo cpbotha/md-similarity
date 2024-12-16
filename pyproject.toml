@@ -1,0 +1,20 @@
+[project]
+name = "md-similarity"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "openai>=1.57.4",
+    "python-frontmatter>=1.1.0",
+    "semchunk>=2.2.0",
+    "sqlite-vec>=0.1.6",
+    "toml>=0.10.2",
+    "transformers>=4.47.0",
+    "typer>=0.15.1",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+]

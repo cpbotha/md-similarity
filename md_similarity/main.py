@@ -1,17 +1,18 @@
 # %%
 
-from functools import lru_cache
 import hashlib
 import re
 import sqlite3
+from functools import lru_cache
 from pathlib import Path
-from typing import cast, NamedTuple
+from typing import NamedTuple, cast
 
 import frontmatter
 import openai
 import sqlite_vec
 import tqdm
 import typer
+
 # from tokenizers import Tokenizer
 
 DEFAULT_DB_NAME = "mdsim.db"

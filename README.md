@@ -36,3 +36,17 @@ You can also search for any query string:
 ```shell
 mdsim search "any amount of text here"
 ```
+
+## Examples
+
+For each of the chunks in the input post, `mdsim list-similar` will find the 5 most similar chunks in your whole archive. It will then sort all of these combined chunks by distance, and then list the top 5 along with the input post chunk they are most similar to.
+
+```shell-session
+$ mdsim list-similar 2024/whv-256-word/index.md          
+Chunks similar to Weekly Head Voices #256: Word:
+0.557 - 2024/whv-255-you-lift-me-up/index.md - Weekly Head Voices #255: You lift me up - ### There is a TiL section on my other website {#there-is-a-til-section-on-my-other-website} 👉 ## Making TiL go fast
+0.707 - 2019/whv-168-postcards-from-the-edge/index.md - Weekly Head Voices #168: Postcards from the edge. - ## Working late like it's 1998. 👉 ## Making TiL go fast
+0.731 - 2019/whv-171-icemirb/index.md - Weekly Head Voices #171: ICEMiRB. - # TIL: Things I learned. 👉 ## Making TiL go fast
+0.731 - 2022/whv-250-durable-blissful-contentment/index.md - Weekly Head Voices #250: Durable, blissful contentment - This, the quarter-thousandth edition of the Weekly Head Voices, covers two 👉 The title of this post is another nerd-dad joke I probably should not have made, but which I simply could not resist.
+0.735 - 2020/whv-207-kogelberg/index.md - Weekly Head Voices #207: Kogelberg - The 207th edition of the Weekly Head Voices, which in theory should cover the 👉 The title of this post is another nerd-dad joke I probably should not have made, but which I simply could not resist.
+```

@@ -8,9 +8,14 @@ My use case is to surface older blog posts that are similar to something I'm cur
 
 ### Install everything
 
-- [install ollama](https://ollama.com/download)
-- In a terminal: `ollama start`
-- In another terminal: `ollama pull nomic-embed-text`
+- Use ollama
+  - [install ollama](https://ollama.com/download)
+  - In a terminal: `ollama start`
+  - In another terminal: `ollama pull nomic-embed-text`
+- OR use lmstudio
+  - [install lmstudio](https://lmstudio.ai/)
+  - cog / model search / nomic -> download an embedding model
+  - developer / settings: set port to 11434 (same as ollama) / set status to running
 - Install this tool: `uv tool install git+https://github.com/cpbotha/md-similarity.git` -- if you follow instructions, you should now have `mdsim` in your path.
 
 ### Pre-process existing posts

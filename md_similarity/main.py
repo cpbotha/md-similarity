@@ -7,21 +7,34 @@ from functools import lru_cache
 from pathlib import Path
 from typing import NamedTuple, cast
 
+from environs import env
 import frontmatter
 import openai
 import sqlite_vec
 import tqdm
 import typer
+from typing_extensions import Annotated
 
 # from tokenizers import Tokenizer
 
 DEFAULT_DB_NAME = "mdsim.db"
 # ollama model
-MODEL = "nomic-embed-text"
+#MODEL = "nomic-embed-text"
+# lmstudio model
+MODEL = "text-embedding-nomic-embed-text-v1.5@q8_0"
+EMBEDDING_DIMS = 768
+# MODEL = "text-embedding-qwen3-embedding-0.6b"
+# EMBEDDING_DIMS = 1024
 # huggingface version
 TOKENIZER_MODEL = "nomic-ai/nomic-embed-text-v1.5"
 max_tokens = 8192
 BATCH_SIZE = 128
+
+def preprocess_input(input: str) -> str:
+    # qwen3 embedding requires this see https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF
+    # but I could not get that model working via LMSTUDIO
+    #return input + "<|endoftext|>"
+    return input
 
 app = typer.Typer()
 
@@ -44,10 +57,13 @@ def _process_markdown(markdown_contents) -> tuple[frontmatter.Post, list[str]]:
     while i < len(sections):
         if sections[i].startswith("#") and i < len(sections) - 1:
             # the extra i < check is that there is actually a i+1 after us
-            result.append(sections[i] + "\n" + sections[i + 1])
+            # by definition (startswith), what we append can't be empty, so we can just add the stripped section
+            result.append((sections[i] + "\n" + sections[i + 1]).strip())
             i += 2
         else:
-            result.append(sections[i])
+            s = sections[i].strip()
+            if len(s) > 0:
+                result.append(sections[i])
             i += 1
 
     return post, cast(list[str], result)
@@ -82,7 +98,7 @@ def _get_db(filename=DEFAULT_DB_NAME):
 
     # base_dir
     # rel_name, post-title, section first-line, embedding
-    db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunk_embeddings USING vec0(embedding float[768]);")
+    db.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS chunk_embeddings USING vec0(embedding float[{EMBEDDING_DIMS}]);")
     # TODO: create separate posts table but I am lazy
     db.execute(
         "CREATE TABLE IF NOT EXISTS chunks (rel_name TEXT, post_title TEXT, section_line0 TEXT, hash TEXT, embedding_id INTEGER);"
@@ -93,8 +109,9 @@ def _get_db(filename=DEFAULT_DB_NAME):
 
 @lru_cache
 def _get_oai():
-    # connect to localhost:11434/v1/embeddings using openai API
-    oai = openai.OpenAI(base_url="http://localhost:11434/v1")
+    # connect to default localhost:11434/v1/embeddings using openai API
+    base_url = env("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    oai = openai.OpenAI(base_url=base_url)
     return oai
 
 
@@ -120,7 +137,7 @@ def _handle_batch(batch: list[InputChunk], oai, db, cache):
     if len(new_batch) > 0:
         # create a batch of sections for the embedder
         sections = [b[2] for b in new_batch]
-        res: openai.types.CreateEmbeddingResponse = oai.embeddings.create(input=sections, model=MODEL)
+        res: openai.types.CreateEmbeddingResponse = oai.embeddings.create(input=[preprocess_input(s) for s in sections], model=MODEL)
         # res.data is a list of Embedding objects, each of which has an array named "embedding"
         embeddings_list = res.data
 
@@ -197,7 +214,7 @@ class SimilarChunk(NamedTuple):
 def _find_similar(q: str, db_filename):
     db = _get_db(db_filename)
     oai = _get_oai()
-    res: openai.types.CreateEmbeddingResponse = oai.embeddings.create(input=q, model=MODEL)
+    res: openai.types.CreateEmbeddingResponse = oai.embeddings.create(input=preprocess_input(q), model=MODEL)
     # res.data is a list of Embedding objects, each of which has an array named "embedding"
     embeddings_list = res.data
 
@@ -218,7 +235,18 @@ def search(q: str, db_filename: str = DEFAULT_DB_NAME):
 
 
 @app.command()
-def list_similar(post_filename: str, db_filename: str = DEFAULT_DB_NAME):
+def list_similar(
+    post_filename: str,
+    db_filename: str = DEFAULT_DB_NAME,
+    num_similar: Annotated[int, typer.Option(help="Show a maximum of this many most similar chunks")] = 5,
+    section_regex: Annotated[
+        str | None,
+        typer.Option(
+            help="A regular expression that the first line of this post's section must match to be considered for similarity"
+        ),
+    ] = None,
+):
+    """List blog post sections / chunks similar to any of post_filename's sections / chunks."""
     post_path = Path(post_filename)
     post, sections = _process_markdown(post_path.read_text())
     title = cast(str, post["title"]) if "title" in post else post_path.stem
@@ -229,18 +257,20 @@ def list_similar(post_filename: str, db_filename: str = DEFAULT_DB_NAME):
     similars = {}
     for section in sections:
         my_line0 = section.split("\n")[0]
+        if section_regex is not None and not re.search(section_regex, my_line0):
+            continue
         my_key = f"{title} - {my_line0}"
         similar_chunks = _find_similar(section, db_filename)
         for sc in similar_chunks:
             key = f"{sc.post_title} - {sc.section_line0}"
             # we ignore that we are similar to ourselves
             if key != my_key:
-                if key not in similars or sc.distance < similars[key].distance:
+                if key not in similars or sc.distance < similars[key][0].distance:
                     similars[key] = (sc, my_line0)
 
     sorted_similars = sorted(similars.values(), key=lambda x: x[0].distance)
-    for sc, my_line0 in sorted_similars[:5]:
-        print(f"{sc.distance:.3f} - {sc.rel_name} - {sc.post_title} - {sc.section_line0} 👉 {my_line0}")
+    for sc, my_line0 in sorted_similars[:num_similar]:
+        print(f"\n{sc.distance:.3f} - {sc.rel_name} - {sc.post_title} - {sc.section_line0} 👉 {my_line0}")
 
 
 if __name__ == "__main__":

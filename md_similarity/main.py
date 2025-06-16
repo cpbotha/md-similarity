@@ -10,6 +10,8 @@ from typing import NamedTuple, cast
 from environs import env
 import frontmatter
 import openai
+from rich.console import Console
+from rich.table import Table
 import sqlite_vec
 import tqdm
 import typer
@@ -19,7 +21,7 @@ from typing_extensions import Annotated
 
 DEFAULT_DB_NAME = "mdsim.db"
 # ollama model
-#MODEL = "nomic-embed-text"
+# MODEL = "nomic-embed-text"
 # lmstudio model
 MODEL = "text-embedding-nomic-embed-text-v1.5@q8_0"
 EMBEDDING_DIMS = 768
@@ -30,11 +32,13 @@ TOKENIZER_MODEL = "nomic-ai/nomic-embed-text-v1.5"
 max_tokens = 8192
 BATCH_SIZE = 128
 
+
 def preprocess_input(input: str) -> str:
     # qwen3 embedding requires this see https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF
     # but I could not get that model working via LMSTUDIO
-    #return input + "<|endoftext|>"
+    # return input + "<|endoftext|>"
     return input
+
 
 app = typer.Typer()
 
@@ -137,7 +141,9 @@ def _handle_batch(batch: list[InputChunk], oai, db, cache):
     if len(new_batch) > 0:
         # create a batch of sections for the embedder
         sections = [b[2] for b in new_batch]
-        res: openai.types.CreateEmbeddingResponse = oai.embeddings.create(input=[preprocess_input(s) for s in sections], model=MODEL)
+        res: openai.types.CreateEmbeddingResponse = oai.embeddings.create(
+            input=[preprocess_input(s) for s in sections], model=MODEL
+        )
         # res.data is a list of Embedding objects, each of which has an array named "embedding"
         embeddings_list = res.data
 
@@ -227,18 +233,41 @@ def _find_similar(q: str, db_filename):
     return [SimilarChunk(distance=r[0], rel_name=r[1], post_title=r[2], section_line0=r[3]) for r in rows]
 
 
+def _table_add_default_columnns(table: Table) -> Table:
+    table.add_column("Distance", style="cyan", justify="right")
+    table.add_column("Post Filename", style="green")
+    table.add_column("Post Title", style="blue")
+    table.add_column("Section", style="yellow")
+    return table
+
+
 @app.command()
 def search(q: str, db_filename: str = DEFAULT_DB_NAME):
     similars = _find_similar(q, db_filename)
+
+    console = Console()
+    console.print(f"\n[bold cyan]Search results for: '{q}'[/bold cyan]")
+
+    if not similars:
+        console.print("[yellow]No similar chunks found.[/yellow]")
+        return
+
+    # Create the table
+    table = Table(title="Search Results", show_header=True, header_style="bold magenta")
+    table = _table_add_default_columnns(table)
+
+    # Add rows to the table
     for sc in similars:
-        print(f"{sc.distance:.3f} - {sc.rel_name} - {sc.post_title} - {sc.section_line0}")
+        table.add_row(f"{sc.distance:.3f}", sc.rel_name, sc.post_title, sc.section_line0)
+
+    console.print(table)
 
 
 @app.command()
 def list_similar(
     post_filename: str,
     db_filename: str = DEFAULT_DB_NAME,
-    num_similar: Annotated[int, typer.Option(help="Show a maximum of this many most similar chunks")] = 5,
+    num: Annotated[int, typer.Option(help="Show a maximum of this many most similar chunks")] = 5,
     section_regex: Annotated[
         str | None,
         typer.Option(
@@ -252,8 +281,9 @@ def list_similar(
     title = cast(str, post["title"]) if "title" in post else post_path.stem
 
     # here we use title + section_line0 as the key
+    console = Console()
+    console.print(f"\n[bold cyan]Chunks similar to {title}:[/bold cyan]")
 
-    print(f"Chunks similar to {title}:")
     similars = {}
     for section in sections:
         my_line0 = section.split("\n")[0]
@@ -269,8 +299,21 @@ def list_similar(
                     similars[key] = (sc, my_line0)
 
     sorted_similars = sorted(similars.values(), key=lambda x: x[0].distance)
-    for sc, my_line0 in sorted_similars[:num_similar]:
-        print(f"\n{sc.distance:.3f} - {sc.rel_name} - {sc.post_title} - {sc.section_line0} 👉 {my_line0}")
+
+    if not sorted_similars:
+        console.print("[yellow]No similar chunks found.[/yellow]")
+        return
+
+    # Create the table
+    table = Table(title="Similar Posts", show_header=True, header_style="bold magenta")
+    table = _table_add_default_columnns(table)
+    table.add_column("This Section", style="dim")
+
+    # Add rows to the table
+    for sc, my_line0 in sorted_similars[:num]:
+        table.add_row(f"{sc.distance:.3f}", sc.rel_name, sc.post_title, sc.section_line0, my_line0[:42])
+
+    console.print(table)
 
 
 if __name__ == "__main__":

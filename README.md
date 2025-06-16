@@ -14,7 +14,7 @@ My use case is to surface older blog posts that are similar to something I'm cur
   - In another terminal: `ollama pull nomic-embed-text`
 - OR use lmstudio
   - [install lmstudio](https://lmstudio.ai/)
-  - cog / model search / nomic -> download an embedding model
+  - cog / model search / nomic -> download an embedding model e.g. `text-embedding-nomic-embed-text-v1.5@q8_0`
   - developer / settings: set port to 11434 (same as ollama) / set status to running
 - Install this tool: `uv tool install git+https://github.com/cpbotha/md-similarity.git` -- if you follow instructions, you should now have `mdsim` in your path.
 

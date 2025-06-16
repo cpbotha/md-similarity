@@ -289,12 +289,12 @@ def list_similar(
         my_line0 = section.split("\n")[0]
         if section_regex is not None and not re.search(section_regex, my_line0):
             continue
-        my_key = f"{title} - {my_line0}"
+
         similar_chunks = _find_similar(section, db_filename)
         for sc in similar_chunks:
             key = f"{sc.post_title} - {sc.section_line0}"
-            # we ignore that we are similar to ourselves
-            if key != my_key:
+            # we ignore any chunks that are most probably from the file we are looking at
+            if not post_path.as_posix().endswith(sc.rel_name):
                 if key not in similars or sc.distance < similars[key][0].distance:
                     similars[key] = (sc, my_line0)
 
